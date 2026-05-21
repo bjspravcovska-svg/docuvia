@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 import { 
   FileText, 
   Users, 
@@ -485,7 +486,30 @@ const Dashboard: React.FC<{
             aiData = parseDocumentWithAI(file.name, rawText, activeCompany || 'Predvolená firma');
           }
 
-          const fileUrl = URL.createObjectURL(file);
+          // Nahrávanie súboru do Supabase Storage
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+          const filePath = `${activeCompany || 'Nezaradene'}/${fileName}`;
+          
+          let fileUrl = '';
+          try {
+            const { error: uploadError } = await supabase.storage
+              .from('documents')
+              .upload(filePath, file);
+              
+            if (uploadError) throw uploadError;
+            
+            const { data: publicUrlData } = supabase.storage
+              .from('documents')
+              .getPublicUrl(filePath);
+              
+            fileUrl = publicUrlData.publicUrl;
+          } catch (e) {
+            console.error("Nepodarilo sa nahrať súbor do Storage:", e);
+            // Fallback na blob ak by zlyhalo úložisko, ale DB by fungovala (nepravdepodobné, ale pre istotu)
+            fileUrl = URL.createObjectURL(file);
+          }
+
           const newDoc = {
             name: aiData.name,
             type: aiData.type,
@@ -532,6 +556,29 @@ const Dashboard: React.FC<{
           
           // Núdzový fallback
           const fallbackData = parseDocumentWithAI(file.name, "", activeCompany || 'Predvolená firma');
+          // Nahrávanie súboru do Supabase Storage v prípade fallbacku
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+          const filePath = `${activeCompany || 'Nezaradene'}/${fileName}`;
+          
+          let fileUrl = '';
+          try {
+            const { error: uploadError } = await supabase.storage
+              .from('documents')
+              .upload(filePath, file);
+              
+            if (!uploadError) {
+              const { data: publicUrlData } = supabase.storage
+                .from('documents')
+                .getPublicUrl(filePath);
+              fileUrl = publicUrlData.publicUrl;
+            } else {
+              fileUrl = URL.createObjectURL(file);
+            }
+          } catch (e) {
+            fileUrl = URL.createObjectURL(file);
+          }
+
           const newDoc = {
             name: fallbackData.name,
             type: fallbackData.type,
@@ -542,7 +589,7 @@ const Dashboard: React.FC<{
             customer: fallbackData.customer || activeCompany || 'Predvolená firma',
             amount: fallbackData.amount,
             category: fallbackData.category,
-            fileUrl: URL.createObjectURL(file),
+            fileUrl: fileUrl,
             fileType: file.type
           };
           try {
