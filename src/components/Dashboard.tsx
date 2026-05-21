@@ -395,7 +395,7 @@ const Dashboard: React.FC<{
     setUploadingQueue(queueEntries);
     setShowUploadToast(true);
 
-    const localProcessedDocs: { supplier: string, name: string }[] = [];
+    const localProcessedDocs: { name: string }[] = [];
 
     queueEntries.forEach((entry, idx) => {
       const file = newFiles[idx];
@@ -489,12 +489,10 @@ const Dashboard: React.FC<{
           }
 
           // Krok 2: Kontrola duplicít (po OCR)
-          // Pravidlo: Faktúra je duplicitná, ak sa zhoduje Názov dodávateľa a zároveň Číslo faktúry (názov)
+          // Pravidlo: Faktúra je duplicitná výlučne vtedy, ak sa zhoduje Číslo faktúry (názov)
           const isDuplicate = allDocuments.some(doc => 
-            doc.supplier === aiData.supplier && 
             doc.name === aiData.name
           ) || localProcessedDocs.some(doc =>
-            doc.supplier === aiData.supplier && 
             doc.name === aiData.name
           );
 
@@ -506,7 +504,7 @@ const Dashboard: React.FC<{
           }
 
           // Ak nie je duplikát, pridáme ho do lokálneho zoznamu
-          localProcessedDocs.push({ supplier: aiData.supplier, name: aiData.name });
+          localProcessedDocs.push({ name: aiData.name });
 
           // Nahrávanie súboru do Supabase Storage
           const fileExt = file.name.split('.').pop();
