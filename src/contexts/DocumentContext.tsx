@@ -22,6 +22,8 @@ export interface Document {
   dueDate?: string;
   deliveryDate?: string;
   fullData?: { key: string; value: string }[];
+  isPaid?: boolean;
+  isChecked?: boolean;
 }
 
 interface DocumentContextType {
@@ -34,7 +36,7 @@ interface DocumentContextType {
 const DocumentContext = createContext<DocumentContextType | undefined>(undefined);
 
 export const DocumentProvider: React.FC<{ children: ReactNode; userEmail: string; companyName: string }> = ({ children, userEmail, companyName }) => {
-  const storageKey = `docuvia_docs_${userEmail}_${companyName}`;
+  const storageKey = `docuvia_docs_global_${userEmail}`;
   
   const [documents, setDocuments] = useState<Document[]>(() => {
     const saved = localStorage.getItem(storageKey);
@@ -71,7 +73,17 @@ export const DocumentProvider: React.FC<{ children: ReactNode; userEmail: string
   }, [userEmail, companyName, storageKey]);
 
   const addDocument = (doc: Document) => {
-    setDocuments((prev) => [...prev, doc]);
+    setDocuments((prev) => {
+      // Deduplikácia
+      const isDuplicate = prev.some(d => 
+        d.name === doc.name && 
+        d.date === doc.date && 
+        d.amount === doc.amount &&
+        d.supplier === doc.supplier
+      );
+      if (isDuplicate) return prev;
+      return [...prev, doc];
+    });
   };
 
   const removeDocument = (id: number) => {

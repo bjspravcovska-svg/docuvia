@@ -14,12 +14,17 @@ import {
   ChevronDown,
   Trash2,
   X,
-  Check
+  Check,
+  Download,
+  CheckSquare,
+  Banknote
 } from 'lucide-react';
 import CashRegister from './CashRegister';
 import Settings from './Settings';
 import CompanySearch from './CompanySearch';
+import AccountingCheck from './AccountingCheck';
 import { useDocuments } from '../contexts/DocumentContext';
+import { classifyDocument } from '../utils/documentClassifier';
 
 const Dashboard: React.FC<{ 
   user: any, 
@@ -29,7 +34,7 @@ const Dashboard: React.FC<{
   usersDB: any[],
   setUsersDB: (db: any[]) => void
 }> = ({ user, activeCompany, setActiveCompany, onUserUpdate, usersDB, setUsersDB }) => {
-  const [view, setView] = useState<'overview' | 'documents' | 'cash-register' | 'settings' | 'company-search'>('overview');
+  const [view, setView] = useState<'overview' | 'documents' | 'cash-register' | 'settings' | 'company-search' | 'accounting-check'>('overview');
   const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -37,10 +42,134 @@ const Dashboard: React.FC<{
   const [showUploadToast, setShowUploadToast] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   
-  const { documents, addDocument, removeDocument, updateDocument } = useDocuments();
+  const { documents: allDocuments, addDocument, removeDocument, updateDocument } = useDocuments();
 
   const [selectedDoc, setSelectedDoc] = useState<any | null>(null);
   const [localNotification, setLocalNotification] = useState<string | null>(null);
+  
+  const [activeDocumentTab, setActiveDocumentTab] = useState('Všetky dokumenty');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterDay, setFilterDay] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
+  const [filterYear, setFilterYear] = useState('');
+
+  const documents = allDocuments.filter(doc => {
+    const norm = (s: string) => (s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const s = norm(doc.supplier || '');
+    const c = norm(doc.customer || '');
+    const a = norm(activeCompany);
+    
+    // Zobrazí sa, len ak je aktívna firma dodávateľom alebo odberateľom.
+    // (prípadne ak je to neznámy starý doklad bez partnerov)
+    if (!s && !c) return true;
+    return s === a || c === a;
+  });
+
+  // Obohatíme dokumenty o ich klasifikáciu (aby sme ich vedeli filtrovať)
+  const classifiedDocuments = documents.map(doc => {
+    const classification = classifyDocument(doc, activeCompany, user?.companies || []);
+    return { ...doc, classification };
+  });
+
+  const visibleDocuments = classifiedDocuments.filter(doc => {
+    const isSearchingGlobally = searchQuery.length > 0;
+    
+    // 1. Tab filter (ignorujeme, ak sa práve globálne vyhľadáva, aby sme hľadali všade)
+    if (!isSearchingGlobally && activeDocumentTab !== 'Všetky dokumenty') {
+      if (activeDocumentTab === 'Bločky' && doc.classification.documentType !== 'bloček') return false;
+      if (activeDocumentTab === 'Ostatné dokumenty' && !(doc.classification.documentType === 'ostatné' || doc.classification.documentType === 'zmluva' || doc.classification.documentType === 'výpis')) return false;
+      if (activeDocumentTab !== 'Bločky' && activeDocumentTab !== 'Ostatné dokumenty' && doc.classification.category !== activeDocumentTab) return false;
+    }
+    
+    // 2. Search query filter
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const match = 
+        (doc.name || '').toLowerCase().includes(q) ||
+        (doc.supplier || '').toLowerCase().includes(q) ||
+        (doc.customer || '').toLowerCase().includes(q) ||
+        (doc.amount || '').toString().includes(q) ||
+        (doc.type || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    
+    // 3. Date filter
+    if (filterYear || filterMonth || filterDay) {
+      const parts = doc.date?.split('-') || [];
+      const dY = parts[0] || '';
+      const dM = parts[1] || '';
+      const dD = parts[2] || '';
+      
+      if (filterYear && dY !== filterYear) return false;
+      if (filterMonth && dM !== filterMonth.padStart(2, '0')) return false;
+      if (filterDay && dD !== filterDay.padStart(2, '0')) return false;
+    }
+    
+    return true;
+  }).sort((a, b) => {
+    const dateA = new Date(a.date || 0).getTime();
+    const dateB = new Date(b.date || 0).getTime();
+    return dateB - dateA; // Najnovšie dokumenty prvé
+  });
+
+  // Bulk actions state
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<number[]>([]);
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedDocumentIds(visibleDocuments.map(d => d.id));
+    } else {
+      setSelectedDocumentIds([]);
+    }
+  };
+
+  const handleToggleSelect = (id: number) => {
+    setSelectedDocumentIds(prev => 
+      prev.includes(id) ? prev.filter(docId => docId !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkExport = () => {
+    const selectedDocs = visibleDocuments.filter(d => selectedDocumentIds.includes(d.id));
+    if (selectedDocs.length === 0) return;
+    
+    // Create CSV content
+    const headers = ['Číslo faktúry', 'Typ', 'Dátum', 'Dodávateľ', 'Odberateľ', 'Suma', 'Stav'];
+    const rows = selectedDocs.map(d => [
+      d.name || '',
+      d.type || '',
+      d.date || '',
+      d.supplier || '',
+      d.customer || '',
+      (d.amount || 0).toString(),
+      d.status || ''
+    ]);
+    
+    const csvContent = [
+      headers.join(';'), // Slovak Excel uses semicolon
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(';'))
+    ].join('\n');
+    
+    // Create Blob and trigger download
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `docuvia_export_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    
+    setSelectedDocumentIds([]);
+  };
+
+  const handleBulkPrint = () => {
+    if (selectedDocumentIds.length === 0) return;
+    
+    // Na reálnu hromadnú tlač by sme vygenerovali zlučený PDF dokument
+    // Pre teraz vyvoláme dialóg a upozorníme používateľa
+    alert(`Pripravujem na tlač ${selectedDocumentIds.length} dokumentov. (V produkcii sa tu vygeneruje zlúčené PDF pre tlačiareň)`);
+    window.print();
+    
+    setSelectedDocumentIds([]);
+  };
 
   // Edit form states for preview
   const [editName, setEditName] = useState('');
@@ -390,7 +519,10 @@ const Dashboard: React.FC<{
 
         } catch (err: any) {
           console.error("Chyba OCR spracovania:", err);
-          alert(`Nastala chyba pri AI analýze dokumentu: ${err.message || 'Neznáma chyba'}. Boli použité záložné dáta.`);
+          
+          // Namiesto blokujúceho alertu použijeme jemnú notifikáciu, aby sme nezasekli prehliadač ak používateľ nahrá veľa súborov
+          setLocalNotification(`Pri súbore ${file.name} AI zlyhalo. Boli použité záložné dáta.`);
+          setTimeout(() => setLocalNotification(null), 5000);
           
           // Núdzový fallback
           const fallbackData = parseDocumentWithAI(file.name, "", activeCompany || 'Predvolená firma');
@@ -447,6 +579,14 @@ const Dashboard: React.FC<{
                 <FileText size={16} /> Dokumenty
               </button>
             )}
+            {hasPermission('documents') && (
+              <button 
+                onClick={() => setView('accounting-check')}
+                className={`flex items-center gap-2 transition-colors ${view === 'accounting-check' ? 'text-white' : 'hover:text-white'}`}
+              >
+                <CheckSquare size={16} /> Účtovná kontrola
+              </button>
+            )}
             {hasPermission('cashRegister') && (
               <button 
                 onClick={() => setView('cash-register')}
@@ -473,14 +613,6 @@ const Dashboard: React.FC<{
         </div>
 
         <div className="flex items-center gap-6">
-          <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-            <input 
-              type="text" 
-              placeholder="Search documents..." 
-              className="bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-[#00f2ff]/50 w-64 transition-all"
-            />
-          </div>
           <div className="relative">
             <button 
               onClick={() => setIsCompanyDropdownOpen(!isCompanyDropdownOpen)}
@@ -697,35 +829,153 @@ const Dashboard: React.FC<{
                    </div>
                 </div>
               )}
-              <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
-                {['Všetko', 'Faktúry', 'Zmluvy', 'Bločky', 'Výpisy'].map((tab, i) => (
-                  <button key={i} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${i === 0 ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-white'}`}>
+              <div className="flex gap-4 mb-8 overflow-x-auto pb-2 custom-scrollbar">
+                {[
+                  'Všetky dokumenty', 
+                  'Faktúra prijatá - tuzemská', 
+                  'Faktúra prijatá - zahraničná', 
+                  'Faktúra vystavená - tuzemská', 
+                  'Faktúra vystavená - zahraničná', 
+                  'Bločky', 
+                  'Ostatné dokumenty'
+                ].map((tab, i) => (
+                  <button 
+                    key={i} 
+                    onClick={() => { setActiveDocumentTab(tab); setSelectedDocumentIds([]); }}
+                    className={`px-5 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeDocumentTab === tab ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                  >
                     {tab}
                   </button>
                 ))}
               </div>
 
+              {/* Vyhľadávanie a filtrovanie */}
+              <div className="flex flex-wrap items-center gap-4 mb-6 animate-in fade-in slide-in-from-top-4">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                  <input 
+                    type="text" 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Hľadať vo všetkých dokumentoch..." 
+                    className="w-full bg-[#0b111a]/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm focus:outline-none focus:border-[#00f2ff]/50 transition-all placeholder:text-slate-500"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center bg-[#0b111a]/50 border border-white/10 rounded-xl overflow-hidden text-sm focus-within:border-[#00f2ff]/50 transition-all">
+                    <input 
+                      type="text" 
+                      placeholder="DD"
+                      maxLength={2}
+                      value={filterDay}
+                      onChange={(e) => setFilterDay(e.target.value.replace(/\D/g, ''))}
+                      className="w-12 bg-transparent py-3 text-center focus:outline-none text-slate-300 placeholder:text-slate-600"
+                    />
+                    <span className="text-slate-600">/</span>
+                    <input 
+                      type="text" 
+                      placeholder="MM"
+                      maxLength={2}
+                      value={filterMonth}
+                      onChange={(e) => setFilterMonth(e.target.value.replace(/\D/g, ''))}
+                      className="w-12 bg-transparent py-3 text-center focus:outline-none text-slate-300 placeholder:text-slate-600"
+                    />
+                    <span className="text-slate-600">/</span>
+                    <input 
+                      type="text" 
+                      placeholder="RRRR"
+                      maxLength={4}
+                      value={filterYear}
+                      onChange={(e) => setFilterYear(e.target.value.replace(/\D/g, ''))}
+                      className="w-16 bg-transparent py-3 text-center focus:outline-none text-slate-300 placeholder:text-slate-600"
+                    />
+                  </div>
+                  {(searchQuery || filterDay || filterMonth || filterYear) && (
+                    <button 
+                      onClick={() => { setSearchQuery(''); setFilterDay(''); setFilterMonth(''); setFilterYear(''); }}
+                      className="bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl p-3 transition-colors"
+                      title="Zrušiť filtre"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Bulk Actions Toolbar */}
+              {selectedDocumentIds.length > 0 && (
+                <div className="bg-[#00f2ff]/10 border border-[#00f2ff]/20 rounded-2xl p-4 mb-4 flex items-center justify-between animate-in fade-in slide-in-from-top-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[#00f2ff] font-bold text-sm bg-[#00f2ff]/20 px-3 py-1 rounded-lg">
+                      Vybrané: {selectedDocumentIds.length}
+                    </span>
+                    <span className="text-slate-400 text-sm">hromadné akcie pre označené dokumenty</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {hasPermission('export') && (
+                      <button 
+                        onClick={handleBulkPrint}
+                        className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all"
+                      >
+                        <Printer size={14} /> Hromadná tlač
+                      </button>
+                    )}
+                    {hasPermission('export') && (
+                      <button 
+                        onClick={handleBulkExport}
+                        className="bg-[#00f2ff] hover:bg-[#00d1ff] text-black px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(0,242,255,0.2)]"
+                      >
+                        <Download size={14} /> Hromadný export
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="w-full overflow-x-auto">
                 <table className="w-full text-left border-separate border-spacing-y-3">
                   <thead>
                     <tr className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+                      <th className="px-4 py-2 w-10 text-center">
+                        <input 
+                          type="checkbox" 
+                          checked={visibleDocuments.length > 0 && selectedDocumentIds.length === visibleDocuments.length}
+                          onChange={handleSelectAll}
+                          className="rounded border-white/10 bg-[#0b111a] text-[#00f2ff] focus:ring-0 w-4 h-4 cursor-pointer"
+                        />
+                      </th>
                       <th className="px-6 py-2">Číslo faktúry</th>
-                      <th className="px-6 py-2">Typ</th>
+                      <th className="px-6 py-2">Kategória</th>
                       <th className="px-6 py-2">Dátum</th>
                       <th className="px-6 py-2">Dodávateľ</th>
                       <th className="px-6 py-2">Odberateľ</th>
+                      <th className="px-6 py-2">Suma</th>
+                      <th className="px-4 py-2 text-center" title="Zaplatené"><Banknote size={16} className="mx-auto text-slate-400" /></th>
+                      <th className="px-4 py-2 text-center" title="Skontrolované"><CheckSquare size={16} className="mx-auto text-slate-400" /></th>
                       <th className="px-6 py-2">Stav</th>
                       <th className="px-6 py-2 text-right">Akcie</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {documents.map((doc) => (
+                    {visibleDocuments.map((doc) => {
+                      const isSelected = selectedDocumentIds.includes(doc.id);
+                      const bgClass = isSelected ? 'bg-[#00f2ff]/10' : 'bg-white/[0.01]';
+                      
+                      return (
                       <tr 
                         key={doc.id} 
                         onClick={() => setSelectedDoc(doc)}
-                        className="group hover:bg-white/[0.02] transition-colors cursor-pointer"
+                        className={`group hover:bg-white/[0.02] transition-colors cursor-pointer ${isSelected ? 'shadow-[inset_0_0_0_1px_rgba(0,242,255,0.3)]' : ''}`}
                       >
-                        <td className="px-6 py-4 rounded-l-2xl border-y border-l border-white/5 bg-white/[0.01]">
+                        <td className={`px-4 py-4 rounded-l-2xl border-y border-l border-white/5 text-center ${bgClass}`} onClick={(e) => e.stopPropagation()}>
+                          <input 
+                            type="checkbox" 
+                            checked={isSelected}
+                            onChange={() => handleToggleSelect(doc.id)}
+                            className="rounded border-white/10 bg-[#0b111a] text-[#00f2ff] focus:ring-0 w-4 h-4 cursor-pointer"
+                          />
+                        </td>
+                        <td className={`px-6 py-4 border-y border-white/5 ${bgClass}`}>
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 group-hover:text-[#00f2ff] transition-colors">
                               <FileText size={20} />
@@ -733,11 +983,36 @@ const Dashboard: React.FC<{
                             <span className="text-sm font-bold">{doc.name}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 border-y border-white/5 bg-white/[0.01] text-sm text-slate-400">{doc.type}</td>
-                        <td className="px-6 py-4 border-y border-white/5 bg-white/[0.01] text-sm text-slate-400">{doc.date}</td>
-                        <td className="px-6 py-4 border-y border-white/5 bg-white/[0.01] text-sm font-medium text-slate-300">{doc.supplier || '-'}</td>
-                        <td className="px-6 py-4 border-y border-white/5 bg-white/[0.01] text-sm font-medium text-slate-300">{doc.customer || '-'}</td>
-                        <td className="px-6 py-4 border-y border-white/5 bg-white/[0.01]">
+                        <td className={`px-6 py-4 border-y border-white/5 text-sm text-slate-400 ${bgClass}`}>{doc.classification.category}</td>
+                        <td className={`px-6 py-4 border-y border-white/5 text-sm text-slate-400 ${bgClass}`}>{doc.date}</td>
+                        <td className={`px-6 py-4 border-y border-white/5 text-sm font-medium text-slate-300 ${bgClass}`}>{doc.supplier || '-'}</td>
+                        <td className={`px-6 py-4 border-y border-white/5 text-sm font-medium text-slate-300 ${bgClass}`}>{doc.customer || '-'}</td>
+                        <td className={`px-6 py-4 border-y border-white/5 text-sm font-bold text-[#00f2ff] ${bgClass}`}>
+                          {doc.amount ? `${Number(doc.amount).toFixed(2)} €` : '-'}
+                        </td>
+                        <td className={`px-4 py-4 border-y border-white/5 text-center ${bgClass}`} onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-center">
+                            <input 
+                              type="checkbox" 
+                              checked={doc.isPaid || false}
+                              onChange={() => updateDocument(doc.id, { isPaid: !doc.isPaid })}
+                              className="rounded border-white/10 bg-[#0b111a] text-green-500 focus:ring-0 w-5 h-5 cursor-pointer"
+                              title="Označiť ako zaplatené"
+                            />
+                          </div>
+                        </td>
+                        <td className={`px-4 py-4 border-y border-white/5 text-center ${bgClass}`} onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-center">
+                            <input 
+                              type="checkbox" 
+                              checked={doc.isChecked || false}
+                              onChange={() => updateDocument(doc.id, { isChecked: !doc.isChecked })}
+                              className="rounded border-white/10 bg-[#0b111a] text-[#00f2ff] focus:ring-0 w-5 h-5 cursor-pointer"
+                              title="Označiť ako skontrolované"
+                            />
+                          </div>
+                        </td>
+                        <td className={`px-6 py-4 border-y border-white/5 ${bgClass}`}>
                           <span className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full ${
                             doc.status === 'Spracované' ? 'bg-green-500/10 text-green-500' : 
                             doc.status === 'Čaká' ? 'bg-yellow-500/10 text-yellow-500' : 
@@ -746,7 +1021,7 @@ const Dashboard: React.FC<{
                             {doc.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 rounded-r-2xl border-y border-r border-white/5 bg-white/[0.01] text-right">
+                        <td className={`px-6 py-4 rounded-r-2xl border-y border-r border-white/5 text-right ${bgClass}`}>
                           <div className="flex items-center justify-end gap-1">
                             {hasPermission('export') && (
                               <button 
@@ -785,16 +1060,18 @@ const Dashboard: React.FC<{
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
             </div>
           </>
         ) : view === 'cash-register' ? (
-          <CashRegister />
+          <CashRegister activeCompany={activeCompany} />
         ) : view === 'company-search' ? (
-          <CompanySearch />
+          <CompanySearch activeCompany={activeCompany} />
+        ) : view === 'accounting-check' ? (
+          <AccountingCheck activeCompany={activeCompany} onBack={() => setView('documents')} />
         ) : (
           <Settings 
             user={user} 
