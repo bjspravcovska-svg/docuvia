@@ -489,26 +489,24 @@ const Dashboard: React.FC<{
           // Nahrávanie súboru do Supabase Storage
           const fileExt = file.name.split('.').pop();
           const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-          const filePath = `${activeCompany || 'Nezaradene'}/${fileName}`;
+          const safeCompany = (activeCompany || 'Nezaradene').replace(/[^a-zA-Z0-9]/g, '_');
+          const filePath = `${safeCompany}/${fileName}`;
           
           let fileUrl = '';
-          try {
-            const { error: uploadError } = await supabase.storage
-              .from('documents')
-              .upload(filePath, file);
-              
-            if (uploadError) throw uploadError;
+          const { error: uploadError } = await supabase.storage
+            .from('documents')
+            .upload(filePath, file);
             
-            const { data: publicUrlData } = supabase.storage
-              .from('documents')
-              .getPublicUrl(filePath);
-              
-            fileUrl = publicUrlData.publicUrl;
-          } catch (e) {
-            console.error("Nepodarilo sa nahrať súbor do Storage:", e);
-            // Fallback na blob ak by zlyhalo úložisko, ale DB by fungovala (nepravdepodobné, ale pre istotu)
-            fileUrl = URL.createObjectURL(file);
+          if (uploadError) {
+            console.error("Storage upload error:", uploadError);
+            throw new Error(`Nepodarilo sa nahrať PDF/Obrázok do cloudu: ${uploadError.message}`);
           }
+          
+          const { data: publicUrlData } = supabase.storage
+            .from('documents')
+            .getPublicUrl(filePath);
+            
+          fileUrl = publicUrlData.publicUrl;
 
           const newDoc = {
             name: aiData.name,
@@ -559,24 +557,22 @@ const Dashboard: React.FC<{
           // Nahrávanie súboru do Supabase Storage v prípade fallbacku
           const fileExt = file.name.split('.').pop();
           const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-          const filePath = `${activeCompany || 'Nezaradene'}/${fileName}`;
+          const safeCompany = (activeCompany || 'Nezaradene').replace(/[^a-zA-Z0-9]/g, '_');
+          const filePath = `${safeCompany}/${fileName}`;
           
           let fileUrl = '';
-          try {
-            const { error: uploadError } = await supabase.storage
+          const { error: uploadError } = await supabase.storage
+            .from('documents')
+            .upload(filePath, file);
+            
+          if (!uploadError) {
+            const { data: publicUrlData } = supabase.storage
               .from('documents')
-              .upload(filePath, file);
-              
-            if (!uploadError) {
-              const { data: publicUrlData } = supabase.storage
-                .from('documents')
-                .getPublicUrl(filePath);
-              fileUrl = publicUrlData.publicUrl;
-            } else {
-              fileUrl = URL.createObjectURL(file);
-            }
-          } catch (e) {
-            fileUrl = URL.createObjectURL(file);
+              .getPublicUrl(filePath);
+            fileUrl = publicUrlData.publicUrl;
+          } else {
+            console.error("Storage fallback upload error:", uploadError);
+            throw new Error(`Zlyhalo aj záložné nahratie súboru: ${uploadError.message}`);
           }
 
           const newDoc = {
