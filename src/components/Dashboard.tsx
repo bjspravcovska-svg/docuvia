@@ -39,7 +39,7 @@ const Dashboard: React.FC<{
   const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [uploadingQueue, setUploadingQueue] = useState<{ id: number; name: string; progress: number; status: 'uploading' | 'done' | 'error' }[]>([]);
+  const [uploadingQueue, setUploadingQueue] = useState<{ id: number; name: string; progress: number; status: 'uploading' | 'done' | 'error'; message?: string }[]>([]);
   const [showUploadToast, setShowUploadToast] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   
@@ -395,6 +395,8 @@ const Dashboard: React.FC<{
     setUploadingQueue(queueEntries);
     setShowUploadToast(true);
 
+    const localProcessedDocs: { supplier: string, amount: number, date: string }[] = [];
+
     queueEntries.forEach((entry, idx) => {
       const file = newFiles[idx];
       
@@ -485,6 +487,28 @@ const Dashboard: React.FC<{
             const rawText = await file.text().catch(() => "");
             aiData = parseDocumentWithAI(file.name, rawText, activeCompany || 'Predvolená firma');
           }
+
+          // Krok 2: Kontrola duplicít (po OCR)
+          const docDate = aiData.date || today;
+          const isDuplicate = allDocuments.some(doc => 
+            doc.supplier === aiData.supplier && 
+            doc.amount === aiData.amount && 
+            doc.date === docDate
+          ) || localProcessedDocs.some(doc =>
+            doc.supplier === aiData.supplier && 
+            doc.amount === aiData.amount && 
+            doc.date === docDate
+          );
+
+          if (isDuplicate) {
+            setUploadingQueue(prev => 
+              prev.map(q => q.id === entry.id ? { ...q, progress: 0, status: 'error' as const, message: 'Duplikát' } : q)
+            );
+            return; // Predčasne ukončíme spracovanie tohto súboru, takže sa nenahrá ani do Storage ani do databázy
+          }
+
+          // Ak nie je duplikát, pridáme ho do lokálneho zoznamu pre prípad, že v rovnakom balíku je rovnaký súbor viackrát
+          localProcessedDocs.push({ supplier: aiData.supplier, amount: aiData.amount, date: docDate });
 
           // Nahrávanie súboru do Supabase Storage
           const fileExt = file.name.split('.').pop();
@@ -1202,7 +1226,7 @@ const Dashboard: React.FC<{
                         </span>
                       ) : item.status === 'error' ? (
                         <span className="flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-500/10 px-3 py-1 rounded-lg">
-                          <X size={14} strokeWidth={3} /> Zlyhalo
+                          <X size={14} strokeWidth={3} /> {item.message || 'Zlyhalo'}
                         </span>
                       ) : (
                         <span className="flex items-center gap-2 text-xs font-bold text-[#00f2ff]">
