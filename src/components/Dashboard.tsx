@@ -38,7 +38,7 @@ const Dashboard: React.FC<{
   const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [uploadingQueue, setUploadingQueue] = useState<{ id: number; name: string; progress: number; status: 'uploading' | 'done' }[]>([]);
+  const [uploadingQueue, setUploadingQueue] = useState<{ id: number; name: string; progress: number; status: 'uploading' | 'done' | 'error' }[]>([]);
   const [showUploadToast, setShowUploadToast] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   
@@ -487,7 +487,6 @@ const Dashboard: React.FC<{
 
           const fileUrl = URL.createObjectURL(file);
           const newDoc = {
-            id: Date.now() + idx + Math.random(),
             name: aiData.name,
             type: aiData.type,
             date: aiData.date || today,
@@ -510,12 +509,19 @@ const Dashboard: React.FC<{
             fileType: file.type
           };
           
-          addDocument(newDoc);
-          
-          // Update toast to done
-          setUploadingQueue(prev => 
-            prev.map(q => q.id === entry.id ? { ...q, progress: 100, status: 'done' as const } : q)
-          );
+          try {
+            await addDocument(newDoc);
+            
+            // Update toast to done
+            setUploadingQueue(prev => 
+              prev.map(q => q.id === entry.id ? { ...q, progress: 100, status: 'done' as const } : q)
+            );
+          } catch (uploadError) {
+            console.error("Zlyhalo nahrávanie do databázy:", uploadError);
+            setUploadingQueue(prev => 
+              prev.map(q => q.id === entry.id ? { ...q, progress: 0, status: 'error' as const } : q)
+            );
+          }
 
         } catch (err: any) {
           console.error("Chyba OCR spracovania:", err);
@@ -527,7 +533,6 @@ const Dashboard: React.FC<{
           // Núdzový fallback
           const fallbackData = parseDocumentWithAI(file.name, "", activeCompany || 'Predvolená firma');
           const newDoc = {
-            id: Date.now() + idx + Math.random(),
             name: fallbackData.name,
             type: fallbackData.type,
             date: fallbackData.date || today,
@@ -540,11 +545,17 @@ const Dashboard: React.FC<{
             fileUrl: URL.createObjectURL(file),
             fileType: file.type
           };
-          addDocument(newDoc);
-          
-          setUploadingQueue(prev => 
-            prev.map(q => q.id === entry.id ? { ...q, progress: 100, status: 'done' as const } : q)
-          );
+          try {
+            await addDocument(newDoc);
+            
+            setUploadingQueue(prev => 
+              prev.map(q => q.id === entry.id ? { ...q, progress: 100, status: 'done' as const } : q)
+            );
+          } catch (uploadError) {
+             setUploadingQueue(prev => 
+              prev.map(q => q.id === entry.id ? { ...q, progress: 0, status: 'error' as const } : q)
+            );
+          }
         }
       };
 
@@ -1083,51 +1094,97 @@ const Dashboard: React.FC<{
       </main>
 
       {/* Background Processing Side Notification (Toast) */}
+      {/* Upload Progress & Report Modal */}
       {showUploadToast && (
-        <div className="fixed bottom-6 right-6 z-[200] w-96 bg-[#111928] border border-white/10 p-5 rounded-3xl shadow-2xl space-y-4 animate-in slide-in-from-bottom-5 duration-300">
-          <div className="flex justify-between items-center">
-            <h4 className="text-sm font-bold flex items-center gap-2">
-              {uploadingQueue.some(q => q.status !== 'done') ? (
-                <>
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00f2ff] opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00f2ff]"></span>
-                  </span>
-                  AI spracovanie na pozadí...
-                </>
-              ) : (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  Spracovanie dokončené
-                </>
+        <div className="fixed inset-0 z-[400] flex items-center justify-center p-6 bg-[#0b111a]/95 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="w-full max-w-2xl bg-[#111928] border border-white/10 rounded-[32px] shadow-2xl overflow-hidden flex flex-col">
+            
+            <div className="p-8 border-b border-white/5 relative">
+              {(uploadingQueue.every(q => q.status === 'done' || q.status === 'error')) && (
+                <button 
+                  onClick={() => setShowUploadToast(false)}
+                  className="absolute top-8 right-8 text-slate-400 hover:text-white transition-colors bg-white/5 border border-white/10 p-2 rounded-full cursor-pointer"
+                >
+                  <X size={20} />
+                </button>
               )}
-            </h4>
-            <button onClick={() => setShowUploadToast(false)} className="text-slate-500 hover:text-white transition-colors text-xs font-bold uppercase">
-              Zavrieť
-            </button>
-          </div>
-
-          <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
-            {uploadingQueue.map(item => (
-              <div key={item.id} className="flex justify-between items-center text-xs">
-                <span className="text-slate-300 truncate max-w-[180px] font-medium">{item.name}</span>
-                <div className="flex items-center gap-2">
-                  {item.status === 'done' ? (
-                    <span className="text-green-500 font-bold">Dokončené</span>
-                  ) : (
-                    <span className="text-slate-500 font-bold">{item.progress}%</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {uploadingQueue.every(q => q.status === 'done') && (
-            <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-2xl flex items-center gap-2 text-xs text-green-500 font-bold animate-in zoom-in-95 duration-200">
-              <span className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center text-black text-[9px] font-black">✓</span>
-              <span>Úspešne spracovaných {uploadingQueue.length} dokladov!</span>
+              
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                {uploadingQueue.some(q => q.status === 'uploading') ? (
+                  <>
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00f2ff] opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-[#00f2ff]"></span>
+                    </span>
+                    Spracovávam dokumenty...
+                  </>
+                ) : (
+                  <>
+                    <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center text-green-500">
+                      <Check size={18} strokeWidth={3} />
+                    </div>
+                    Report nahrávania
+                  </>
+                )}
+              </h2>
+              
+              {(uploadingQueue.every(q => q.status === 'done' || q.status === 'error')) && (
+                <p className="text-slate-400 mt-2">Všetky dokumenty boli spracované.</p>
+              )}
             </div>
-          )}
+
+            <div className="p-8 bg-[#080d14]/50 flex-1">
+              {(uploadingQueue.every(q => q.status === 'done' || q.status === 'error')) && (
+                <div className="grid grid-cols-2 gap-4 mb-8">
+                  <div className="bg-[#111928] border border-white/5 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
+                    <p className="text-4xl font-black text-green-500">{uploadingQueue.filter(q => q.status === 'done').length}</p>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase mt-2">Úspešne nahraté</p>
+                  </div>
+                  <div className="bg-[#111928] border border-white/5 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
+                    <p className={`text-4xl font-black ${uploadingQueue.some(q => q.status === 'error') ? 'text-red-500' : 'text-slate-600'}`}>{uploadingQueue.filter(q => q.status === 'error').length}</p>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase mt-2">Zlyhalo (Nenahraté)</p>
+                  </div>
+                </div>
+              )}
+
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Detailný zoznam</h3>
+              <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-3 pr-2">
+                {uploadingQueue.map(item => (
+                  <div key={item.id} className="flex justify-between items-center bg-[#111928] border border-white/5 p-4 rounded-xl">
+                    <span className="text-sm font-medium text-slate-300 truncate pr-4">{item.name}</span>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {item.status === 'done' ? (
+                        <span className="flex items-center gap-1.5 text-xs font-bold text-green-500 bg-green-500/10 px-3 py-1 rounded-lg">
+                          <Check size={14} strokeWidth={3} /> Úspešné
+                        </span>
+                      ) : item.status === 'error' ? (
+                        <span className="flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-500/10 px-3 py-1 rounded-lg">
+                          <X size={14} strokeWidth={3} /> Zlyhalo
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2 text-xs font-bold text-[#00f2ff]">
+                          <span className="animate-spin w-3 h-3 border-2 border-[#00f2ff] border-t-transparent rounded-full"></span>
+                          {item.progress}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {(uploadingQueue.every(q => q.status === 'done' || q.status === 'error')) && (
+              <div className="p-6 bg-[#111928] border-t border-white/5 flex justify-end">
+                <button 
+                  onClick={() => setShowUploadToast(false)}
+                  className="bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-8 rounded-xl text-sm transition-colors"
+                >
+                  Zavrieť report
+                </button>
+              </div>
+            )}
+            
+          </div>
         </div>
       )}
 
