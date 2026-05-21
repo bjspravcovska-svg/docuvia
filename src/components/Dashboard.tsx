@@ -421,7 +421,7 @@ const Dashboard: React.FC<{
               if (context) {
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
-                await page.render({ canvasContext: context, viewport: viewport }).promise;
+                await page.render({ canvasContext: context, viewport: viewport } as any).promise;
                 base64Image = canvas.toDataURL('image/jpeg', 0.8);
               }
             } else {
@@ -1067,9 +1067,9 @@ const Dashboard: React.FC<{
             </div>
           </>
         ) : view === 'cash-register' ? (
-          <CashRegister activeCompany={activeCompany} />
+          <CashRegister />
         ) : view === 'company-search' ? (
-          <CompanySearch activeCompany={activeCompany} />
+          <CompanySearch />
         ) : view === 'accounting-check' ? (
           <AccountingCheck activeCompany={activeCompany} onBack={() => setView('documents')} />
         ) : (

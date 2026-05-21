@@ -49,7 +49,6 @@ export function classifyDocument(doc: Document, activeCompany: string, userCompa
   if (docType === 'bloček') direction = 'prijatá';
 
   // 3. Tuzemská vs Zahraničná (Domestic vs Foreign)
-  let partnerIco = direction === 'prijatá' ? (doc.supplierIco || '') : (doc.customerIco || '');
   let partnerIcDph = direction === 'prijatá' ? (doc.supplierIcDph || '') : (doc.customerIcDph || '');
   let partnerName = direction === 'prijatá' ? supplier : customer;
   

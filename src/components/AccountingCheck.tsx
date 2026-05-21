@@ -61,7 +61,7 @@ const AccountingCheck: React.FC<AccountingCheckProps> = ({ onBack, activeCompany
     let remainingAcc = [...accRecords];
 
     companyDocs.forEach(doc => {
-      if (doc.classification?.documentType !== 'faktúra' && doc.type !== 'Faktúra') {
+      if ((doc as any).classification?.documentType !== 'faktúra' && doc.type !== 'Faktúra') {
          // Kontrolujeme len faktúry? Môžeme všetko, ale faktúry sú hlavné
       }
 
