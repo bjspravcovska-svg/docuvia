@@ -395,7 +395,7 @@ const Dashboard: React.FC<{
     setUploadingQueue(queueEntries);
     setShowUploadToast(true);
 
-    const localProcessedDocs: { supplier: string, amount: number, date: string }[] = [];
+    const localProcessedDocs: { supplier: string, name: string }[] = [];
 
     queueEntries.forEach((entry, idx) => {
       const file = newFiles[idx];
@@ -489,26 +489,24 @@ const Dashboard: React.FC<{
           }
 
           // Krok 2: Kontrola duplicít (po OCR)
-          const docDate = aiData.date || today;
+          // Pravidlo: Faktúra je duplicitná, ak sa zhoduje Názov dodávateľa a zároveň Číslo faktúry (názov)
           const isDuplicate = allDocuments.some(doc => 
             doc.supplier === aiData.supplier && 
-            doc.amount === aiData.amount && 
-            doc.date === docDate
+            doc.name === aiData.name
           ) || localProcessedDocs.some(doc =>
             doc.supplier === aiData.supplier && 
-            doc.amount === aiData.amount && 
-            doc.date === docDate
+            doc.name === aiData.name
           );
 
           if (isDuplicate) {
             setUploadingQueue(prev => 
               prev.map(q => q.id === entry.id ? { ...q, progress: 0, status: 'error' as const, message: 'Duplikát' } : q)
             );
-            return; // Predčasne ukončíme spracovanie tohto súboru, takže sa nenahrá ani do Storage ani do databázy
+            return; // Predčasne ukončíme spracovanie tohto súboru
           }
 
-          // Ak nie je duplikát, pridáme ho do lokálneho zoznamu pre prípad, že v rovnakom balíku je rovnaký súbor viackrát
-          localProcessedDocs.push({ supplier: aiData.supplier, amount: aiData.amount, date: docDate });
+          // Ak nie je duplikát, pridáme ho do lokálneho zoznamu
+          localProcessedDocs.push({ supplier: aiData.supplier, name: aiData.name });
 
           // Nahrávanie súboru do Supabase Storage
           const fileExt = file.name.split('.').pop();
