@@ -16,6 +16,7 @@ import {
   Trash2,
   X,
   Check,
+  Download,
   CheckSquare,
   Banknote,
   LogOut
@@ -177,7 +178,7 @@ const Dashboard: React.FC<{
     if (selectedDocumentIds.length === 0) return;
     
     if (window.confirm(`Naozaj chcete vymazať ${selectedDocumentIds.length} vybraných dokumentov? Táto akcia je nevratná.`)) {
-      setDocuments(prev => prev.filter(doc => !selectedDocumentIds.includes(doc.id)));
+      selectedDocumentIds.forEach(id => removeDocument(id));
       setSelectedDocumentIds([]);
       setLocalNotification(`${selectedDocumentIds.length} dokumentov bolo úspešne vymazaných.`);
       setTimeout(() => setLocalNotification(null), 3000);
