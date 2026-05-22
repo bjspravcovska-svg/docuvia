@@ -493,8 +493,12 @@ const Dashboard: React.FC<{
           // DÔLEŽITÉ: Ak AI nenájde číslo faktúry (vráti "Neuvedené", "Faktúra", "Bloček" atď.), nesmieme to označiť za duplikát!
           const isGenericName = !aiData.name || 
                                 aiData.name === file.name || 
-                                /^(neuveden[eé]|neznám[eé]|fakt[uú]ra|blo[čc]ek|n\/a|-|none|null)$/i.test(aiData.name.trim());
+                                /^(neuveden[eé]|neznám[eé]|fakt[uú]ra|blo[čc]ek|n\/a|-|none|null|ostatné doklady|ostatne doklady)$/i.test(aiData.name.trim());
           
+          if (isGenericName) {
+            aiData.name = 'Ostatné doklady';
+          }
+
           const isDuplicate = !isGenericName && (
             allDocuments.some(doc => doc.name === aiData.name) || 
             localProcessedDocs.some(doc => doc.name === aiData.name)
