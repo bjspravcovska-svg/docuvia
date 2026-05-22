@@ -172,6 +172,17 @@ const Dashboard: React.FC<{
     setSelectedDocumentIds([]);
   };
 
+  const handleBulkDelete = () => {
+    if (selectedDocumentIds.length === 0) return;
+    
+    if (window.confirm(`Naozaj chcete vymazať ${selectedDocumentIds.length} vybraných dokumentov? Táto akcia je nevratná.`)) {
+      setDocuments(prev => prev.filter(doc => !selectedDocumentIds.includes(doc.id)));
+      setSelectedDocumentIds([]);
+      setLocalNotification(`${selectedDocumentIds.length} dokumentov bolo úspešne vymazaných.`);
+      setTimeout(() => setLocalNotification(null), 3000);
+    }
+  };
+
   // Edit form states for preview
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState('');
@@ -1024,6 +1035,14 @@ const Dashboard: React.FC<{
                         className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all"
                       >
                         <Printer size={14} /> Hromadná tlač
+                      </button>
+                    )}
+                    {hasPermission('delete') && (
+                      <button 
+                        onClick={handleBulkDelete}
+                        className="bg-red-500/20 hover:bg-red-500/40 text-red-500 border border-red-500/30 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all"
+                      >
+                        <Trash2 size={14} /> Vymazať označené
                       </button>
                     )}
                     {hasPermission('export') && (
