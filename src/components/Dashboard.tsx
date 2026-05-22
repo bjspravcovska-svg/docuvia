@@ -395,7 +395,7 @@ const Dashboard: React.FC<{
     setUploadingQueue(queueEntries);
     setShowUploadToast(true);
 
-    const localProcessedDocs: { name: string }[] = [];
+    const localProcessedDocs: { name: string, type: string }[] = [];
 
     queueEntries.forEach((entry, idx) => {
       const file = newFiles[idx];
@@ -493,27 +493,27 @@ const Dashboard: React.FC<{
           // DÔLEŽITÉ: Ak AI nenájde číslo faktúry (vráti "Neuvedené", "Faktúra", "Bloček" atď.), nesmieme to označiť za duplikát!
           const isGenericName = !aiData.name || 
                                 aiData.name === file.name || 
-                                /^(neuveden[eé]|neznám[eé]|fakt[uú]ra|blo[čc]ek|n\/a|-|none|null|ostatné doklady|ostatne doklady)$/i.test(aiData.name.trim());
+                                /^(neuveden[eé]|neznám[eé]|fakt[uú]ra|blo[čc]ek|n\/a|-|none|null|ostatné doklady|ostatne doklady|ostatné dokumenty|ostatne dokumenty)$/i.test(aiData.name.trim());
           
           if (isGenericName) {
-            aiData.type = 'Ostatné doklady';
+            aiData.type = 'Ostatné dokumenty';
             aiData.name = file.name; // Ponecháme aspoň názov súboru, aby kolegyňa vedela, o ktorý dokument ide
           }
 
-          const isDuplicate = !isGenericName && (
-            allDocuments.some(doc => doc.name === aiData.name) || 
-            localProcessedDocs.some(doc => doc.name === aiData.name)
-          );
+          const existingDoc = (!isGenericName) ? 
+            (allDocuments.find(doc => doc.name === aiData.name) || localProcessedDocs.find(doc => doc.name === aiData.name))
+            : null;
 
-          if (isDuplicate) {
+          if (existingDoc) {
+            const where = existingDoc.type || 'Nezaradené';
             setUploadingQueue(prev => 
-              prev.map(q => q.id === entry.id ? { ...q, progress: 0, status: 'error' as const, message: 'Duplikát' } : q)
+              prev.map(q => q.id === entry.id ? { ...q, progress: 0, status: 'error' as const, message: `Duplikát (v ${where})` } : q)
             );
             return; // Predčasne ukončíme spracovanie tohto súboru
           }
 
           // Ak nie je duplikát, pridáme ho do lokálneho zoznamu
-          localProcessedDocs.push({ name: aiData.name });
+          localProcessedDocs.push({ name: aiData.name, type: aiData.type });
 
           // Nahrávanie súboru do Supabase Storage
           const fileExt = file.name.split('.').pop();
