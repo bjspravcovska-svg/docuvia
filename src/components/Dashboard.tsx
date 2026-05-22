@@ -489,7 +489,7 @@ const Dashboard: React.FC<{
               const errMsg = errorData.error?.message || response.statusText || 'Neznáma chyba API';
               
               // Zobrazíme upozornenie, ale dovolíme fallbacku aby doklad aspoň základne spracoval
-              setLocalNotification({ type: 'error', message: `OpenAI zlyhalo: ${errMsg}` });
+              setLocalNotification(`OpenAI zlyhalo: ${errMsg}`);
               setTimeout(() => setLocalNotification(null), 8000);
             }
           }
