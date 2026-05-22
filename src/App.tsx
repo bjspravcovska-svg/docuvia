@@ -38,10 +38,7 @@ const App: React.FC = () => {
   const [usersDB, setUsersDB] = useState<any[]>(() => {
     const saved = localStorage.getItem('docuvia_users');
     if (saved) {
-      let parsed = JSON.parse(saved);
-      // Premazanie starých účtov, aby si mohla ísť naisto nanovo
-      parsed = parsed.filter((u: any) => u.email !== 'ema.palfyova2@gmail.com' && u.email !== 'bss-spravcovska');
-      return parsed;
+      return JSON.parse(saved);
     }
     return [{ name: 'Admin', surname: 'Test', email: 'test@docuvia.sk', password: 'Heslo123', companies: ['Testovacia Firma s.r.o.'] }];
   });
