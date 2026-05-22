@@ -490,10 +490,14 @@ const Dashboard: React.FC<{
 
           // Krok 2: Kontrola duplicít (po OCR)
           // Pravidlo: Faktúra je duplicitná výlučne vtedy, ak sa zhoduje Číslo faktúry (názov)
-          const isDuplicate = allDocuments.some(doc => 
-            doc.name === aiData.name
-          ) || localProcessedDocs.some(doc =>
-            doc.name === aiData.name
+          // DÔLEŽITÉ: Ak AI nenájde číslo faktúry (vráti "Neuvedené", "Faktúra", "Bloček" atď.), nesmieme to označiť za duplikát!
+          const isGenericName = !aiData.name || 
+                                aiData.name === file.name || 
+                                /^(neuveden[eé]|neznám[eé]|fakt[uú]ra|blo[čc]ek|n\/a|-|none|null)$/i.test(aiData.name.trim());
+          
+          const isDuplicate = !isGenericName && (
+            allDocuments.some(doc => doc.name === aiData.name) || 
+            localProcessedDocs.some(doc => doc.name === aiData.name)
           );
 
           if (isDuplicate) {
