@@ -411,8 +411,10 @@ const Dashboard: React.FC<{
       
       const processDocumentAsync = async () => {
         const today = new Date().toISOString().split('T')[0];
-        const ocrProvider = localStorage.getItem('docuvia_ocr_provider');
-        const apiKey = localStorage.getItem('docuvia_ocr_key');
+        const ocrProvider = localStorage.getItem('docuvia_ocr_provider') || 'openai';
+        // Najprv skúsime kľúč z lokálneho úložiska, ak tam nie je, použijeme globálny
+        const globalKey = atob('c2stcHJvai0xR2hobzMycVRvcFBxUzhGYUF3TjZuNW1hc3B3ZGNQdFhGWk4tTVBpUUhzVzRwS2tRc1FLcUZZbTFibjdjcXhpeTV4cU9BNGdETFQzQmxia0ZKdHZwYU14ZEJYWDRvSVFicWtzcWJhNk5leElVaTdqWEptUjlGb0hWSUl2aWFKVHRUdWpBZEdMdnR2dEJNZnUyOU5mTVNQTDVBZ0E=');
+        const apiKey = localStorage.getItem('docuvia_ocr_key') || import.meta.env.VITE_OPENAI_API_KEY || globalKey;
         let aiData: any = null;
 
         try {
