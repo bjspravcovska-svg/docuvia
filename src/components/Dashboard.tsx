@@ -496,7 +496,8 @@ const Dashboard: React.FC<{
                                 /^(neuveden[eé]|neznám[eé]|fakt[uú]ra|blo[čc]ek|n\/a|-|none|null|ostatné doklady|ostatne doklady)$/i.test(aiData.name.trim());
           
           if (isGenericName) {
-            aiData.name = 'Ostatné doklady';
+            aiData.type = 'Ostatné doklady';
+            aiData.name = file.name; // Ponecháme aspoň názov súboru, aby kolegyňa vedela, o ktorý dokument ide
           }
 
           const isDuplicate = !isGenericName && (
