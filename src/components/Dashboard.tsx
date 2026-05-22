@@ -16,9 +16,9 @@ import {
   Trash2,
   X,
   Check,
-  Download,
   CheckSquare,
-  Banknote
+  Banknote,
+  LogOut
 } from 'lucide-react';
 import CashRegister from './CashRegister';
 import Settings from './Settings';
@@ -33,8 +33,9 @@ const Dashboard: React.FC<{
   setActiveCompany: (c: string) => void, 
   onUserUpdate?: (updatedUser: any) => void,
   usersDB: any[],
-  setUsersDB: (db: any[]) => void
-}> = ({ user, activeCompany, setActiveCompany, onUserUpdate, usersDB, setUsersDB }) => {
+  setUsersDB: (db: any[]) => void,
+  onLogout?: () => void
+}> = ({ user, activeCompany, setActiveCompany, onUserUpdate, usersDB, setUsersDB, onLogout }) => {
   const [view, setView] = useState<'overview' | 'documents' | 'cash-register' | 'settings' | 'company-search' | 'accounting-check'>('overview');
   const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -768,6 +769,15 @@ const Dashboard: React.FC<{
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-slate-800 to-slate-700 border border-white/10 flex items-center justify-center overflow-hidden">
               <User size={20} className="text-slate-400" />
             </div>
+            {onLogout && (
+              <button 
+                onClick={onLogout}
+                title="Odhlásiť sa"
+                className="ml-2 w-10 h-10 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center transition-colors"
+              >
+                <LogOut size={18} />
+              </button>
+            )}
           </div>
         </div>
       </nav>

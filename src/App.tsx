@@ -10,7 +10,10 @@ const App: React.FC = () => {
   const [view, setView] = useState<'landing' | 'login' | 'register' | 'forgot-password'>('landing');
   const [registrationStep, setRegistrationStep] = useState<'details' | '2fa' | 'companies'>('details');
   const [notification, setNotification] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<any>(() => {
+    const saved = localStorage.getItem('docuvia_active_user');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [activeCompany, setActiveCompany] = useState<string | null>(null);
 
   // Automatické presmerovanie zo starých portov (napr. 5175) na správny port 5173
@@ -31,6 +34,15 @@ const App: React.FC = () => {
         // Pre istotu pridáme predvolenú firmu aj priamo do objektu používateľa v pamäti (aby fungoval dropdown)
         user.companies = ['Predvolená firma'];
       }
+    }
+  }, [user]);
+
+  // Ukladanie aktívneho používateľa do localStorage pre zachovanie relácie
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('docuvia_active_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('docuvia_active_user');
     }
   }, [user]);
 
@@ -519,7 +531,12 @@ const App: React.FC = () => {
       <DocumentProvider userEmail={docUserEmail} companyName={activeCompany}>
         <Dashboard 
           user={user} 
-          activeCompany={activeCompany} 
+          activeCompany={activeCompany || 'Predvolená firma'}
+          onLogout={() => {
+            setUser(null);
+            localStorage.removeItem('docuvia_active_user');
+            setView('landing');
+          }}
           setActiveCompany={setActiveCompany} 
           onUserUpdate={handleUserUpdate} 
           usersDB={usersDB}
