@@ -338,10 +338,19 @@ const Dashboard: React.FC<{
       }
 
       // Parse Invoice Number
-      const numMatch = cleanName.match(/(?:fa|inv|faktura|číslo|cislo)?[_\-\s]?([0-9]{4,10})/i) ||
-                       rawText.match(/(?:faktúra\s*č\.|fa\s*č\.)\s*([A-Za-z0-9]+)/i);
-      if (numMatch && numMatch[1]) {
+      let isScannerFile = /naskenovan[eé]|scanned|scan|document/i.test(cleanName);
+      
+      const rawMatch = rawText.match(/(?:faktúra\s*č\.|fa\s*č\.)\s*([A-Za-z0-9]+)/i);
+      const numMatch = cleanName.match(/(?:fa|inv|faktura|číslo|cislo)[_\-\s]?([0-9]{4,10})/i) ||
+                       (!isScannerFile ? cleanName.match(/(?:^|_|-|\s)([0-9]{4,10})(?:_|-|\s|$)/) : null);
+                       
+      if (rawMatch && rawMatch[1]) {
+        invName = docType === 'Bloček' ? `Bloček č. ${rawMatch[1]}` : `FA-${rawMatch[1]}`;
+      } else if (numMatch && numMatch[1]) {
         invName = docType === 'Bloček' ? `Bloček č. ${numMatch[1]}` : `FA-${numMatch[1]}`;
+      } else if (isScannerFile) {
+        // Pre naskenované súbory bez zisteného čísla dáme náhodné číslo, aby neboli všetky rovnaké a nepadli do duplikátov
+        invName = docType === 'Bloček' ? `Bloček č. ${Math.floor(100000 + Math.random() * 900000)}` : `FA-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
       } else if (!/^[A-Za-z0-9_\-]+$/.test(cleanName) || cleanName.length > 25) {
         invName = docType === 'Bloček' ? `Bloček č. ${Math.floor(100000 + Math.random() * 900000)}` : `FA-2023-${Math.floor(1000 + Math.random() * 9000)}`;
       }
