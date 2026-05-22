@@ -348,11 +348,11 @@ const Dashboard: React.FC<{
         invName = docType === 'Bloček' ? `Bloček č. ${rawMatch[1]}` : `FA-${rawMatch[1]}`;
       } else if (numMatch && numMatch[1]) {
         invName = docType === 'Bloček' ? `Bloček č. ${numMatch[1]}` : `FA-${numMatch[1]}`;
-      } else if (isScannerFile) {
-        // Pre naskenované súbory bez zisteného čísla dáme náhodné číslo, aby neboli všetky rovnaké a nepadli do duplikátov
-        invName = docType === 'Bloček' ? `Bloček č. ${Math.floor(100000 + Math.random() * 900000)}` : `FA-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
-      } else if (!/^[A-Za-z0-9_\-]+$/.test(cleanName) || cleanName.length > 25) {
-        invName = docType === 'Bloček' ? `Bloček č. ${Math.floor(100000 + Math.random() * 900000)}` : `FA-2023-${Math.floor(1000 + Math.random() * 9000)}`;
+      } else {
+        // Ak nenájdeme žiadne číslo v texte ani názve, použijeme samotný názov súboru bez prípony.
+        // Týmto zabezpečíme, že pri opätovnom nahratí rovnakého súboru sa správne spustí kontrola duplicít,
+        // čo by pri náhodne generovaných číslach nefungovalo.
+        invName = cleanName;
       }
 
       // Category Detection
