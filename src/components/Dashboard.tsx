@@ -479,6 +479,14 @@ const Dashboard: React.FC<{
                 category: parsedContent.category || 'Režijné náklady',
                 fullData: parsedContent.fullData || []
               };
+            } else {
+              const errorData = await response.json().catch(() => ({}));
+              console.error("OpenAI Error:", errorData);
+              const errMsg = errorData.error?.message || response.statusText || 'Neznáma chyba API';
+              
+              // Zobrazíme upozornenie, ale dovolíme fallbacku aby doklad aspoň základne spracoval
+              setLocalNotification({ type: 'error', message: `OpenAI zlyhalo: ${errMsg}` });
+              setTimeout(() => setLocalNotification(null), 8000);
             }
           }
 
