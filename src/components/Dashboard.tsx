@@ -431,16 +431,13 @@ const Dashboard: React.FC<{
         let aiData: any = null;
 
         try {
-          // Bezpečná detekcia typu súboru (drag&drop z emailu niekedy stráca MIME typ)
-          const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-          const isImage = file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
-
-          // Ak je nastavené OpenAI, použijeme reálne GPT-4o Vision API! (Podpora pre Obrázky aj PDF)
-          if (ocrProvider === 'openai' && apiKey && (isImage || isPdf)) {
+          // Odstránime striktné overovanie prípon a MIME typov, pretože skenery ich často vynechávajú
+          
+          if (ocrProvider === 'openai' && apiKey) {
             let base64Image = '';
             
-            if (isPdf) {
-              // Prevedieme prvú stranu PDF na obrázok
+            try {
+              // Najprv sa pokúsime súbor prečítať ako PDF (aj keď nemá príponu .pdf)
               const pdfjsLib = await import('pdfjs-dist');
               pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
               const arrayBuffer = await file.arrayBuffer();
@@ -455,7 +452,8 @@ const Dashboard: React.FC<{
                 await page.render({ canvasContext: context, viewport: viewport } as any).promise;
                 base64Image = canvas.toDataURL('image/jpeg', 0.8);
               }
-            } else {
+            } catch (pdfError) {
+              // Ak to nie je PDF alebo zlyhá PDF parser, automaticky to považujeme za obrázok
               base64Image = await fileToBase64(file);
             }
             
