@@ -670,17 +670,18 @@ const Dashboard: React.FC<{
       return processDocumentAsync();
     });
 
-    // Spustenie dokumentov po skupinách (dávkach)
-    const runInBatches = async () => {
-      const BATCH_SIZE = 3; // Maximálne 3 dokumenty naraz kvôli OpenAI Rate Limits
-      
-      for (let i = 0; i < asyncTasks.length; i += BATCH_SIZE) {
-        const batch = asyncTasks.slice(i, i + BATCH_SIZE);
-        await Promise.all(batch.map(task => task()));
+    // Spustenie dokumentov sekvenčne po jednom s pauzou
+    const runSequentially = async () => {
+      for (let i = 0; i < asyncTasks.length; i++) {
+        await asyncTasks[i]();
+        // Umelá prestávka 1,5 sekundy medzi každým dokumentom kvôli prísnym OpenAI limitom
+        if (i < asyncTasks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
       }
     };
     
-    runInBatches();
+    runSequentially();
   };
 
   return (
