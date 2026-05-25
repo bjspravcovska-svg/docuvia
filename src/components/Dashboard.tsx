@@ -459,6 +459,9 @@ const Dashboard: React.FC<{
             
             if (!base64Image) throw new Error('Nepodarilo sa vytvoriť obrázok z dokumentu');
             
+            const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
+
+            
             // Implementujeme auto-retry (až 3 pokusy) pre Rate Limity
             let retries = 3;
             let success = false;
@@ -630,6 +633,9 @@ const Dashboard: React.FC<{
           console.error("Chyba OCR spracovania:", err);
           
           const errorMessage = err?.message || err?.toString() || "Neznáma chyba";
+          
+          // DOČASNÝ DEBUG: Použijeme natívny alert, aby sme to na 100% zachytili a prečítali
+          alert(`Chyba pri súbore ${file.name}:\n\n${errorMessage}`);
           
           // Namiesto blokujúceho alertu použijeme jemnú notifikáciu s presnou chybou
           setLocalNotification(`Pri súbore ${file.name} AI zlyhalo: ${errorMessage}`);
