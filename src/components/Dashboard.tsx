@@ -462,6 +462,8 @@ const Dashboard: React.FC<{
             const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
 
             
+            const promptText = `Si profesionálny účtovný asistent. Tvojou úlohou je vyčítať všetky údaje z priloženého obrázka faktúry alebo bločku. AK priložený obrázok NIE JE faktúra ani bloček (napr. je to len rukou písaný text, poznámka, zmluva, alebo iný dokument bez jasného čísla faktúry), VŽDY vráť "type": "Ostatné dokumenty" a "name": "Neuvedené". Vráť VÝLUČNE platný JSON objekt s týmito kľúčmi: "name" (číslo faktúry napr. FA-2023-01, alebo "Neuvedené" ak to nie je faktúra), "type" (Faktúra, Bloček, alebo Ostatné dokumenty), "date" (dátum vystavenia YYYY-MM-DD), "dueDate" (dátum splatnosti YYYY-MM-DD), "deliveryDate" (dátum dodania YYYY-MM-DD), "supplier" (názov dodávateľa), "supplierIco" (IČO dodávateľa), "supplierDic" (DIČ dodávateľa), "supplierIcDph" (IČ DPH dodávateľa), "customer" (názov odberateľa), "customerIco" (IČO odberateľa), "customerDic" (DIČ odberateľa), "customerIcDph" (IČ DPH odberateľa), "amount" (celková suma ako číslo, bez meny), "category" (odhadnutá kategória napr. Služby, Cestovné, IT a softvér, Kancelárske potreby), a kľúč "fullData", čo musí byť pole objektov v tvare {"key": string, "value": string}, kde doslova riadok po riadku prepíšeš ÚPLNE VŠETKY informácie z obrázka.`;
+
             // Implementujeme auto-retry (až 3 pokusy) pre Rate Limity
             let retries = 3;
             let success = false;
@@ -481,7 +483,7 @@ const Dashboard: React.FC<{
                       {
                         role: 'user',
                         content: [
-                          { type: 'text', text: prompt },
+                          { type: 'text', text: promptText },
                           { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Data}` } }
                         ]
                       }
