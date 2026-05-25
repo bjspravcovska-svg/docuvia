@@ -461,60 +461,78 @@ const Dashboard: React.FC<{
             
             if (!base64Image) throw new Error('Nepodarilo sa vytvoriť obrázok z dokumentu');
             
-            const response = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-              },
-              body: JSON.stringify({
-                model: 'gpt-4o',
-                messages: [
-                  {
-                    role: 'system',
-                    content: 'Si profesionálny účtovný asistent. Tvojou úlohou je vyčítať všetky údaje z priloženého obrázka faktúry alebo bločku. AK priložený obrázok NIE JE faktúra ani bloček (napr. je to len rukou písaný text, poznámka, zmluva, alebo iný dokument bez jasného čísla faktúry), VŽDY vráť "type": "Ostatné dokumenty" a "name": "Neuvedené". Vráť VÝLUČNE platný JSON objekt s týmito kľúčmi: "name" (číslo faktúry napr. FA-2023-01, alebo "Neuvedené" ak to nie je faktúra), "type" (Faktúra, Bloček, alebo Ostatné dokumenty), "date" (dátum vystavenia YYYY-MM-DD), "dueDate" (dátum splatnosti YYYY-MM-DD), "deliveryDate" (dátum dodania YYYY-MM-DD), "supplier" (názov dodávateľa), "supplierIco" (IČO dodávateľa), "supplierDic" (DIČ dodávateľa), "supplierIcDph" (IČ DPH dodávateľa), "customer" (názov odberateľa), "customerIco" (IČO odberateľa), "customerDic" (DIČ odberateľa), "customerIcDph" (IČ DPH odberateľa), "amount" (celková suma ako číslo, bez meny), "category" (odhadnutá kategória napr. Služby, Cestovné, IT a softvér, Kancelárske potreby), a kľúč "fullData", čo musí byť pole objektov v tvare {"key": string, "value": string}, kde doslova riadok po riadku prepíšeš ÚPLNE VŠETKY informácie z obrázka.'
+            // Implementujeme auto-retry (až 3 pokusy) pre Rate Limity
+            let retries = 3;
+            let success = false;
+            let currentDelay = 5000; // Počiatočné čakanie 5 sekúnd pri chybe
+            
+            while (retries > 0 && !success) {
+              try {
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
                   },
-                  {
-                    role: 'user',
-                    content: [
-                      { type: 'text', text: 'Vyčítaj mi údaje z tohto dokumentu a vráť čistý JSON so všetkými detailmi (IČO, DIČ, Odberateľ, Dodávateľ...), a hlavne nezabudni na pole "fullData" s kompletným prepisom.' },
-                      { type: 'image_url', image_url: { url: base64Image } }
-                    ]
-                  }
-                ],
-                response_format: { type: 'json_object' }
-              })
-            });
+                  body: JSON.stringify({
+                    model: 'gpt-4o-mini',
+                    messages: [
+                      {
+                        role: 'user',
+                        content: [
+                          { type: 'text', text: prompt },
+                          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Data}` } }
+                        ]
+                      }
+                    ],
+                    max_tokens: 1500,
+                    temperature: 0.1
+                  })
+                });
 
-            if (response.ok) {
-              const result = await response.json();
-              const parsedContent = JSON.parse(result.choices[0].message.content);
-              aiData = {
-                name: parsedContent.name || file.name,
-                type: parsedContent.type || 'Faktúra',
-                date: parsedContent.date || today,
-                dueDate: parsedContent.dueDate || '',
-                deliveryDate: parsedContent.deliveryDate || '',
-                supplier: parsedContent.supplier || 'Neznámy dodávateľ',
-                supplierIco: parsedContent.supplierIco || '',
-                supplierDic: parsedContent.supplierDic || '',
-                supplierIcDph: parsedContent.supplierIcDph || '',
-                customer: parsedContent.customer || activeCompany || 'Predvolená firma',
-                customerIco: parsedContent.customerIco || '',
-                customerDic: parsedContent.customerDic || '',
-                customerIcDph: parsedContent.customerIcDph || '',
-                amount: parsedContent.amount || 0,
-                category: parsedContent.category || 'Režijné náklady',
-                fullData: parsedContent.fullData || []
-              };
-            } else {
-              const errorData = await response.json().catch(() => ({}));
-              console.error("OpenAI Error:", errorData);
-              const errMsg = errorData.error?.message || response.statusText || 'Neznáma chyba API';
-              
-              // Zobrazíme upozornenie, ale dovolíme fallbacku aby doklad aspoň základne spracoval
-              setLocalNotification(`OpenAI zlyhalo: ${errMsg}`);
-              setTimeout(() => setLocalNotification(null), 8000);
+                if (response.ok) {
+                  const result = await response.json();
+                  const rawJsonStr = result.choices[0].message.content.trim().replace(/```json/g, '').replace(/```/g, '');
+                  const parsedContent = JSON.parse(rawJsonStr);
+                  
+                  aiData = {
+                    type: parsedContent.type || 'Nezaradené',
+                    name: parsedContent.name || file.name,
+                    date: parsedContent.date || today,
+                    dueDate: parsedContent.dueDate || null,
+                    deliveryDate: parsedContent.deliveryDate || null,
+                    supplier: parsedContent.supplier || 'Neznámy dodávateľ',
+                    supplierIco: parsedContent.supplierIco || '',
+                    supplierDic: parsedContent.supplierDic || '',
+                    supplierIcDph: parsedContent.supplierIcDph || '',
+                    customer: parsedContent.customer || activeCompany || 'Predvolená firma',
+                    customerIco: parsedContent.customerIco || '',
+                    customerDic: parsedContent.customerDic || '',
+                    customerIcDph: parsedContent.customerIcDph || '',
+                    amount: parsedContent.amount || 0,
+                    category: parsedContent.category || 'Režijné náklady',
+                    fullData: parsedContent.fullData || []
+                  };
+                  success = true;
+                } else if (response.status === 429) {
+                  // Prekročený Rate Limit
+                  retries--;
+                  console.warn(`OpenAI Rate Limit hit (429). Retries left: ${retries}. Waiting ${currentDelay}ms...`);
+                  if (retries === 0) throw new Error("Prekročený limit OpenAI (Rate Limit/TPM). Skúste nahrávať po menších dávkach.");
+                  setLocalNotification(`OpenAI limit... Čakám ${currentDelay/1000}s pre súbor ${file.name}`);
+                  await new Promise(resolve => setTimeout(resolve, currentDelay));
+                  currentDelay *= 2; // Exponenciálne spomalenie (5s, potom 10s)
+                } else {
+                  const errorData = await response.json().catch(() => ({}));
+                  console.error("OpenAI Error:", errorData);
+                  const errMsg = errorData.error?.message || response.statusText || 'Neznáma chyba API';
+                  throw new Error(errMsg);
+                }
+              } catch (e: any) {
+                if (retries === 0 || !e.message?.includes('Rate Limit')) {
+                  throw e; // Prepošleme chybu von do hlavného catch bloku
+                }
+              }
             }
           }
 
@@ -613,9 +631,11 @@ const Dashboard: React.FC<{
         } catch (err: any) {
           console.error("Chyba OCR spracovania:", err);
           
-          // Namiesto blokujúceho alertu použijeme jemnú notifikáciu, aby sme nezasekli prehliadač ak používateľ nahrá veľa súborov
-          setLocalNotification(`Pri súbore ${file.name} AI zlyhalo. Boli použité záložné dáta.`);
-          setTimeout(() => setLocalNotification(null), 5000);
+          const errorMessage = err?.message || err?.toString() || "Neznáma chyba";
+          
+          // Namiesto blokujúceho alertu použijeme jemnú notifikáciu s presnou chybou
+          setLocalNotification(`Pri súbore ${file.name} AI zlyhalo: ${errorMessage}`);
+          setTimeout(() => setLocalNotification(null), 8000);
           
           // Núdzový fallback
           const fallbackData = parseDocumentWithAI(file.name, "", activeCompany || 'Predvolená firma');
