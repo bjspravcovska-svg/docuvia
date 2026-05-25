@@ -636,9 +636,6 @@ const Dashboard: React.FC<{
           
           const errorMessage = err?.message || err?.toString() || "Neznáma chyba";
           
-          // DOČASNÝ DEBUG: Použijeme natívny alert, aby sme to na 100% zachytili a prečítali
-          alert(`Chyba pri súbore ${file.name}:\n\n${errorMessage}`);
-          
           // Namiesto blokujúceho alertu použijeme jemnú notifikáciu s presnou chybou
           setLocalNotification(`Pri súbore ${file.name} AI zlyhalo: ${errorMessage}`);
           setTimeout(() => setLocalNotification(null), 8000);
