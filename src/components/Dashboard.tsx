@@ -419,7 +419,7 @@ const Dashboard: React.FC<{
 
     const localProcessedDocs: { name: string, type: string }[] = [];
 
-    queueEntries.forEach((entry, idx) => {
+    const asyncTasks = queueEntries.map((entry, idx) => {
       const file = newFiles[idx];
       
       const processDocumentAsync = async () => {
@@ -667,8 +667,20 @@ const Dashboard: React.FC<{
         }
       };
 
-      processDocumentAsync();
+      return processDocumentAsync();
     });
+
+    // Spustenie dokumentov po skupinách (dávkach)
+    const runInBatches = async () => {
+      const BATCH_SIZE = 3; // Maximálne 3 dokumenty naraz kvôli OpenAI Rate Limits
+      
+      for (let i = 0; i < asyncTasks.length; i += BATCH_SIZE) {
+        const batch = asyncTasks.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(task => task()));
+      }
+    };
+    
+    runInBatches();
   };
 
   return (
