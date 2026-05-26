@@ -475,7 +475,17 @@ const Dashboard: React.FC<{
             
             const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
 
-            const promptText = `Si profesionálny účtovný asistent. Tvojou úlohou je vyčítať všetky údaje z priloženého obrázka faktúry alebo bločku. AK priložený obrázok NIE JE faktúra ani bloček (napr. je to len rukou písaný text, poznámka, zmluva, alebo iný dokument bez jasného čísla faktúry), VŽDY vráť "type": "Ostatné dokumenty" a "name": "Neuvedené". Vráť VÝLUČNE platný JSON objekt s týmito kľúčmi: "name" (číslo faktúry napr. FA-2023-01, alebo "Neuvedené" ak to nie je faktúra), "type" (Faktúra, Bloček, alebo Ostatné dokumenty), "date" (dátum vystavenia YYYY-MM-DD), "dueDate" (dátum splatnosti YYYY-MM-DD), "deliveryDate" (dátum dodania YYYY-MM-DD), "supplier" (názov dodávateľa), "supplierIco" (IČO dodávateľa), "supplierDic" (DIČ dodávateľa), "supplierIcDph" (IČ DPH dodávateľa), "customer" (názov odberateľa), "customerIco" (IČO odberateľa), "customerDic" (DIČ odberateľa), "customerIcDph" (IČ DPH odberateľa), "amount" (celková suma ako číslo, bez meny), "category" (odhadnutá kategória napr. Služby, Cestovné, IT a softvér, Kancelárske potreby), a nasledovných 5 textových kľúčov so surovým textom z dokumentu: "supplierRaw" (kompletný surový text z okienka dodávateľa, meno, adresa, kontakty atď), "customerRaw" (kompletný surový text z okienka odberateľa), "paymentRaw" (surový text o platbe: IBAN, banka, SWIFT, variabilný symbol, dátumy), "itemsRaw" (surový text tabuľky tovarov a služieb, cenník, položky) a "otherRaw" (všetok zvyšný text, poznámky, pečiatky, sumáre DPH). Týchto 5 kľúčov musí obsahovať doslovný prepis informácií presne tak ako sú na obrázku.`;
+            const promptText = `Si profesionálny účtovný asistent. Tvojou úlohou je vyčítať všetky údaje z priloženého obrázka faktúry alebo bločku. AK priložený obrázok NIE JE faktúra ani bloček, VŽDY vráť "type": "Ostatné dokumenty" a "name": "Neuvedené". Vráť VÝLUČNE platný JSON objekt s týmito kľúčmi:
+"name" (číslo faktúry - vypíš celé presné číslo vrátane písmen, napr. FA2023, F-123, FK456. Ak číslo faktúry naozaj nie je uvedené, VŽDY použi Variabilný symbol!), 
+"type" (Faktúra, Bloček, alebo Ostatné dokumenty), 
+"date" (dátum vystavenia YYYY-MM-DD), 
+"dueDate" (dátum splatnosti YYYY-MM-DD), 
+"deliveryDate" (Dátum dodania tovaru a služby YYYY-MM-DD. Tento je najdôležitejší!), 
+"supplier" (názov dodávateľa), "supplierCountry" (krajina dodávateľa, napr. Slovensko, Česká republika, atď.), "supplierIco" (IČO dodávateľa), "supplierDic" (DIČ dodávateľa), "supplierIcDph" (IČ DPH dodávateľa), 
+"customer" (názov odberateľa), "customerIco" (IČO odberateľa), "customerDic" (DIČ odberateľa), "customerIcDph" (IČ DPH odberateľa), 
+"amount" (Suma BEZ DPH ako číslo. Keďže sme platci DPH, vyčítaj výlučne sumu bez DPH, teda základ dane. Ak DPH nie je na doklade vôbec uvedená, použi celkovú sumu), 
+"category" (odhadnutá kategória napr. Služby, Cestovné), 
+a nasledovných 5 textových kľúčov so surovým textom z dokumentu: "supplierRaw" (okienko dodávateľa), "customerRaw" (okienko odberateľa), "paymentRaw" (platba: IBAN, banka, SWIFT, variabilný symbol), "itemsRaw" (tabuľka tovarov) a "otherRaw" (všetok zvyšný text). Týchto 5 kľúčov musí obsahovať doslovný prepis.`;
 
             // Implementujeme auto-retry (až 3 pokusy) pre Rate Limity
             let retries = 3;
@@ -515,10 +525,11 @@ const Dashboard: React.FC<{
                   aiData = {
                     type: parsedContent.type || 'Nezaradené',
                     name: parsedContent.name || file.name,
-                    date: parsedContent.date || today,
+                    date: parsedContent.deliveryDate || parsedContent.date || today,
                     dueDate: parsedContent.dueDate || null,
                     deliveryDate: parsedContent.deliveryDate || null,
                     supplier: parsedContent.supplier || 'Neznámy dodávateľ',
+                    supplierCountry: parsedContent.supplierCountry || 'Slovensko',
                     supplierIco: parsedContent.supplierIco || '',
                     supplierDic: parsedContent.supplierDic || '',
                     supplierIcDph: parsedContent.supplierIcDph || '',
@@ -562,15 +573,17 @@ const Dashboard: React.FC<{
             aiData = parseDocumentWithAI(file.name, rawText, activeCompany || 'Predvolená firma');
           }
           
-          // Krok 1.5: Rozdelenie (Split) Faktúra Vystavená vs Prijatá podľa aktívnej firmy
+          // Krok 1.5: Rozdelenie (Split) Faktúra Vystavená vs Prijatá podľa aktívnej firmy a krajiny
           const activeCompanyLower = (activeCompany || '').toLowerCase().trim();
           const supplierLower = (aiData.supplier || '').toLowerCase();
           const customerLower = (aiData.customer || '').toLowerCase();
+          const supplierCountryLower = (aiData.supplierCountry || 'slovensko').toLowerCase();
+          const isForeign = !supplierCountryLower.includes('slovensko') && !supplierCountryLower.includes('sk');
           
           if (activeCompanyLower && supplierLower.includes(activeCompanyLower)) {
-            aiData.category = 'Faktúra vystavená - tuzemská';
+            aiData.category = isForeign ? 'Faktúra vystavená - zahraničná' : 'Faktúra vystavená - tuzemská';
           } else if (activeCompanyLower && customerLower.includes(activeCompanyLower)) {
-            aiData.category = 'Faktúra prijatá - tuzemská';
+            aiData.category = isForeign ? 'Faktúra prijatá - zahraničná' : 'Faktúra prijatá - tuzemská';
           }
 
           // Krok 2: Kontrola duplicít (po OCR)
