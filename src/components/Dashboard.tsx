@@ -518,13 +518,12 @@ const Dashboard: React.FC<{
                   };
                   success = true;
                 } else if (response.status === 429) {
-                  // Prekročený Rate Limit
+                  // Prekročený Rate Limit (OpenAI Free Tier resetuje kvótu po 1 minúte)
                   retries--;
-                  console.warn(`OpenAI Rate Limit hit (429). Retries left: ${retries}. Waiting ${currentDelay}ms...`);
+                  console.warn(`OpenAI Rate Limit hit (429). Retries left: ${retries}. Waiting 60s...`);
                   if (retries === 0) throw new Error("Prekročený limit OpenAI (Rate Limit/TPM). Skúste nahrávať po menších dávkach.");
-                  setLocalNotification(`OpenAI limit... Čakám ${currentDelay/1000}s pre súbor ${file.name}`);
-                  await new Promise(resolve => setTimeout(resolve, currentDelay));
-                  currentDelay *= 2; // Exponenciálne spomalenie (5s, potom 10s)
+                  setLocalNotification(`OpenAI limit dosiahnutý. Čakám 60 sekúnd na reset kvóty...`);
+                  await new Promise(resolve => setTimeout(resolve, 60000)); // Pevných 60 sekúnd
                 } else {
                   const errorData = await response.json().catch(() => ({}));
                   console.error("OpenAI Error:", errorData);
