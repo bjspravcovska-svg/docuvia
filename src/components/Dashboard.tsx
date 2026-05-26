@@ -224,11 +224,17 @@ const Dashboard: React.FC<{
       setEditCustomerIcDph(selectedDoc.customerIcDph || '');
       setEditDueDate(selectedDoc.dueDate || '');
       setEditDeliveryDate(selectedDoc.deliveryDate || '');
-      setEditSupplierRaw(selectedDoc.supplierRaw || '');
-      setEditCustomerRaw(selectedDoc.customerRaw || '');
-      setEditPaymentRaw(selectedDoc.paymentRaw || '');
-      setEditItemsRaw(selectedDoc.itemsRaw || '');
-      setEditOtherRaw(selectedDoc.otherRaw || '');
+      
+      const getFullDataField = (key: string) => {
+        const found = selectedDoc.fullData?.find(d => d.key === key);
+        return found ? found.value : '';
+      };
+      
+      setEditSupplierRaw(getFullDataField('supplierRaw'));
+      setEditCustomerRaw(getFullDataField('customerRaw'));
+      setEditPaymentRaw(getFullDataField('paymentRaw'));
+      setEditItemsRaw(getFullDataField('itemsRaw'));
+      setEditOtherRaw(getFullDataField('otherRaw'));
     }
   }, [selectedDoc]);
 
@@ -495,6 +501,7 @@ const Dashboard: React.FC<{
                         ]
                       }
                     ],
+                    response_format: { type: "json_object" },
                     max_tokens: 4000,
                     temperature: 0.1
                   })
@@ -622,11 +629,13 @@ const Dashboard: React.FC<{
             customerIcDph: aiData.customerIcDph,
             amount: aiData.amount,
             category: aiData.category,
-            supplierRaw: aiData.supplierRaw || '',
-            customerRaw: aiData.customerRaw || '',
-            paymentRaw: aiData.paymentRaw || '',
-            itemsRaw: aiData.itemsRaw || '',
-            otherRaw: aiData.otherRaw || '',
+            fullData: [
+              { key: 'supplierRaw', value: aiData.supplierRaw || '' },
+              { key: 'customerRaw', value: aiData.customerRaw || '' },
+              { key: 'paymentRaw', value: aiData.paymentRaw || '' },
+              { key: 'itemsRaw', value: aiData.itemsRaw || '' },
+              { key: 'otherRaw', value: aiData.otherRaw || '' }
+            ],
             fileUrl: fileUrl,
             fileType: file.type
           };
@@ -649,6 +658,8 @@ const Dashboard: React.FC<{
           console.error("Chyba OCR spracovania:", err);
           
           const errorMessage = err?.message || err?.toString() || "Neznáma chyba";
+          
+          alert(`Zlyhanie pri: ${file.name}\nDôvod: ${errorMessage}`);
           
           // Namiesto blokujúceho alertu použijeme jemnú notifikáciu s presnou chybou
           setLocalNotification(`Pri súbore ${file.name} AI zlyhalo: ${errorMessage}`);
@@ -1515,11 +1526,13 @@ const Dashboard: React.FC<{
                       customerIcDph: editCustomerIcDph,
                       amount: editAmount,
                       category: editCategory,
-                      supplierRaw: editSupplierRaw,
-                      customerRaw: editCustomerRaw,
-                      paymentRaw: editPaymentRaw,
-                      itemsRaw: editItemsRaw,
-                      otherRaw: editOtherRaw
+                      fullData: [
+                        { key: 'supplierRaw', value: editSupplierRaw },
+                        { key: 'customerRaw', value: editCustomerRaw },
+                        { key: 'paymentRaw', value: editPaymentRaw },
+                        { key: 'itemsRaw', value: editItemsRaw },
+                        { key: 'otherRaw', value: editOtherRaw }
+                      ]
                     });
                     setSelectedDoc(null);
                     setLocalNotification('Zmeny v dokumente boli úspešne uložené!');

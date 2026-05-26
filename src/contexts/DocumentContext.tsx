@@ -22,11 +22,7 @@ export interface Document {
   customerIcDph?: string;
   dueDate?: string;
   deliveryDate?: string;
-  supplierRaw?: string;
-  customerRaw?: string;
-  paymentRaw?: string;
-  itemsRaw?: string;
-  otherRaw?: string;
+  fullData?: { key: string; value: string }[];
   isPaid?: boolean;
   isChecked?: boolean;
 }
