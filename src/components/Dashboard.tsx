@@ -580,9 +580,13 @@ a nasledovných 5 textových kľúčov so surovým textom z dokumentu: "supplier
           const supplierCountryLower = (aiData.supplierCountry || 'slovensko').toLowerCase();
           const isForeign = !supplierCountryLower.includes('slovensko') && !supplierCountryLower.includes('sk');
           
-          if (activeCompanyLower && supplierLower.includes(activeCompanyLower)) {
+          // Pomocná funkcia na vytiahnutie len čistej časti názvu (bez s.r.o., a.s., čiarok) pre bezpečnejšie párovanie
+          const getCoreName = (name: string) => name.replace(/[,.]/g, '').replace(/\bs\.r\.o\.\b|\bs r o\b|\ba\.s\.\b|\ba s\b/gi, '').trim();
+          const coreActiveCompany = getCoreName(activeCompanyLower);
+          
+          if (coreActiveCompany && getCoreName(supplierLower).includes(coreActiveCompany)) {
             aiData.category = isForeign ? 'Faktúra vystavená - zahraničná' : 'Faktúra vystavená - tuzemská';
-          } else if (activeCompanyLower && customerLower.includes(activeCompanyLower)) {
+          } else if (coreActiveCompany && getCoreName(customerLower).includes(coreActiveCompany)) {
             aiData.category = isForeign ? 'Faktúra prijatá - zahraničná' : 'Faktúra prijatá - tuzemská';
           }
 
@@ -598,8 +602,12 @@ a nasledovných 5 textových kľúčov so surovým textom z dokumentu: "supplier
             aiData.name = file.name; // Ponecháme aspoň názov súboru, aby kolegyňa vedela, o ktorý dokument ide
           }
 
+          // Pomocná funkcia na odstránenie medzier a pomlčiek pre bezpečnú kontrolu duplicít
+          const normalizeInvoiceName = (name: string) => (name || '').toLowerCase().replace(/[\s\-_/\\,.]/g, '');
+          const newDocNameNorm = normalizeInvoiceName(aiData.name);
+
           const existingDoc = (!isGenericName) ? 
-            (allDocuments.find(doc => doc.name === aiData.name) || localProcessedDocs.find(doc => doc.name === aiData.name))
+            (allDocuments.find(doc => normalizeInvoiceName(doc.name) === newDocNameNorm) || localProcessedDocs.find(doc => normalizeInvoiceName(doc.name) === newDocNameNorm))
             : null;
 
           if (existingDoc) {
