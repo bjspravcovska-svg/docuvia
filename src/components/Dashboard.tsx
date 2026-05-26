@@ -201,7 +201,11 @@ const Dashboard: React.FC<{
   const [editCustomerIcDph, setEditCustomerIcDph] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
   const [editDeliveryDate, setEditDeliveryDate] = useState('');
-  const [editFullData, setEditFullData] = useState<{key: string, value: string}[]>([]);
+  const [editSupplierRaw, setEditSupplierRaw] = useState<string>('');
+  const [editCustomerRaw, setEditCustomerRaw] = useState<string>('');
+  const [editPaymentRaw, setEditPaymentRaw] = useState<string>('');
+  const [editItemsRaw, setEditItemsRaw] = useState<string>('');
+  const [editOtherRaw, setEditOtherRaw] = useState<string>('');
 
   useEffect(() => {
     if (selectedDoc) {
@@ -220,7 +224,11 @@ const Dashboard: React.FC<{
       setEditCustomerIcDph(selectedDoc.customerIcDph || '');
       setEditDueDate(selectedDoc.dueDate || '');
       setEditDeliveryDate(selectedDoc.deliveryDate || '');
-      setEditFullData(selectedDoc.fullData || []);
+      setEditSupplierRaw(selectedDoc.supplierRaw || '');
+      setEditCustomerRaw(selectedDoc.customerRaw || '');
+      setEditPaymentRaw(selectedDoc.paymentRaw || '');
+      setEditItemsRaw(selectedDoc.itemsRaw || '');
+      setEditOtherRaw(selectedDoc.otherRaw || '');
     }
   }, [selectedDoc]);
 
@@ -459,10 +467,7 @@ const Dashboard: React.FC<{
             
             if (!base64Image) throw new Error('Nepodarilo sa vytvoriť obrázok z dokumentu');
             
-            const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
-
-            
-            const promptText = `Si profesionálny účtovný asistent. Tvojou úlohou je vyčítať všetky údaje z priloženého obrázka faktúry alebo bločku. AK priložený obrázok NIE JE faktúra ani bloček (napr. je to len rukou písaný text, poznámka, zmluva, alebo iný dokument bez jasného čísla faktúry), VŽDY vráť "type": "Ostatné dokumenty" a "name": "Neuvedené". Vráť VÝLUČNE platný JSON objekt s týmito kľúčmi: "name" (číslo faktúry napr. FA-2023-01, alebo "Neuvedené" ak to nie je faktúra), "type" (Faktúra, Bloček, alebo Ostatné dokumenty), "date" (dátum vystavenia YYYY-MM-DD), "dueDate" (dátum splatnosti YYYY-MM-DD), "deliveryDate" (dátum dodania YYYY-MM-DD), "supplier" (názov dodávateľa), "supplierIco" (IČO dodávateľa), "supplierDic" (DIČ dodávateľa), "supplierIcDph" (IČ DPH dodávateľa), "customer" (názov odberateľa), "customerIco" (IČO odberateľa), "customerDic" (DIČ odberateľa), "customerIcDph" (IČ DPH odberateľa), "amount" (celková suma ako číslo, bez meny), "category" (odhadnutá kategória napr. Služby, Cestovné, IT a softvér, Kancelárske potreby), a kľúč "fullData", čo musí byť pole objektov v tvare {"key": string, "value": string}, kde doslova riadok po riadku prepíšeš ÚPLNE VŠETKY informácie z obrázka.`;
+            const promptText = `Si profesionálny účtovný asistent. Tvojou úlohou je vyčítať všetky údaje z priloženého obrázka faktúry alebo bločku. AK priložený obrázok NIE JE faktúra ani bloček (napr. je to len rukou písaný text, poznámka, zmluva, alebo iný dokument bez jasného čísla faktúry), VŽDY vráť "type": "Ostatné dokumenty" a "name": "Neuvedené". Vráť VÝLUČNE platný JSON objekt s týmito kľúčmi: "name" (číslo faktúry napr. FA-2023-01, alebo "Neuvedené" ak to nie je faktúra), "type" (Faktúra, Bloček, alebo Ostatné dokumenty), "date" (dátum vystavenia YYYY-MM-DD), "dueDate" (dátum splatnosti YYYY-MM-DD), "deliveryDate" (dátum dodania YYYY-MM-DD), "supplier" (názov dodávateľa), "supplierIco" (IČO dodávateľa), "supplierDic" (DIČ dodávateľa), "supplierIcDph" (IČ DPH dodávateľa), "customer" (názov odberateľa), "customerIco" (IČO odberateľa), "customerDic" (DIČ odberateľa), "customerIcDph" (IČ DPH odberateľa), "amount" (celková suma ako číslo, bez meny), "category" (odhadnutá kategória napr. Služby, Cestovné, IT a softvér, Kancelárske potreby), a nasledovných 5 textových kľúčov so surovým textom z dokumentu: "supplierRaw" (kompletný surový text z okienka dodávateľa, meno, adresa, kontakty atď), "customerRaw" (kompletný surový text z okienka odberateľa), "paymentRaw" (surový text o platbe: IBAN, banka, SWIFT, variabilný symbol, dátumy), "itemsRaw" (surový text tabuľky tovarov a služieb, cenník, položky) a "otherRaw" (všetok zvyšný text, poznámky, pečiatky, sumáre DPH). Týchto 5 kľúčov musí obsahovať doslovný prepis informácií presne tak ako sú na obrázku.`;
 
             // Implementujeme auto-retry (až 3 pokusy) pre Rate Limity
             let retries = 3;
@@ -513,8 +518,12 @@ const Dashboard: React.FC<{
                     customerDic: parsedContent.customerDic || '',
                     customerIcDph: parsedContent.customerIcDph || '',
                     amount: parsedContent.amount || 0,
-                    category: parsedContent.category || 'Režijné náklady',
-                    fullData: parsedContent.fullData || []
+                    category: parsedContent.category || 'Réžijné náklady',
+                    supplierRaw: parsedContent.supplierRaw || '',
+                    customerRaw: parsedContent.customerRaw || '',
+                    paymentRaw: parsedContent.paymentRaw || '',
+                    itemsRaw: parsedContent.itemsRaw || '',
+                    otherRaw: parsedContent.otherRaw || ''
                   };
                   success = true;
                 } else if (response.status === 429) {
@@ -611,7 +620,11 @@ const Dashboard: React.FC<{
             customerIcDph: aiData.customerIcDph,
             amount: aiData.amount,
             category: aiData.category,
-            fullData: aiData.fullData || [],
+            supplierRaw: aiData.supplierRaw || '',
+            customerRaw: aiData.customerRaw || '',
+            paymentRaw: aiData.paymentRaw || '',
+            itemsRaw: aiData.itemsRaw || '',
+            otherRaw: aiData.otherRaw || '',
             fileUrl: fileUrl,
             fileType: file.type
           };
@@ -1413,29 +1426,65 @@ const Dashboard: React.FC<{
 
                 <div className="space-y-4 mt-2">
                   {/* Full Document Transcript Form-style */}
-                  {editFullData.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-5">
-                      {editFullData.map((row, i) => (
-                        <div key={i} className="space-y-1.5">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-[#00f2ff] ml-1 block truncate" title={row.key}>{row.key}</label>
-                          <input 
-                            type="text"
-                            value={row.value}
-                            onChange={(e) => {
-                              const newData = [...editFullData];
-                              newData[i].value = e.target.value;
-                              setEditFullData(newData);
-                            }}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:border-[#00f2ff]/50 transition-all outline-none text-xs text-white shadow-inner"
-                          />
-                        </div>
-                      ))}
+                  {/* Thematic Raw Text Boxes */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-5">
+                    
+                    {/* Supplier */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-[#00f2ff] ml-1 block truncate">Dodávateľ</label>
+                      <textarea 
+                        value={editSupplierRaw}
+                        onChange={(e) => setEditSupplierRaw(e.target.value)}
+                        placeholder="Nenašiel sa žiadny text..."
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:border-[#00f2ff]/50 transition-all outline-none text-xs text-white shadow-inner resize-y min-h-[100px]"
+                      />
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-center py-10">
-                      <p className="text-sm text-slate-500">Spracovávajú sa dáta alebo nebol nájdený žiadny text.</p>
+
+                    {/* Customer */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-[#00f2ff] ml-1 block truncate">Odberateľ</label>
+                      <textarea 
+                        value={editCustomerRaw}
+                        onChange={(e) => setEditCustomerRaw(e.target.value)}
+                        placeholder="Nenašiel sa žiadny text..."
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:border-[#00f2ff]/50 transition-all outline-none text-xs text-white shadow-inner resize-y min-h-[100px]"
+                      />
                     </div>
-                  )}
+
+                    {/* Payment and Dates */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-[#00f2ff] ml-1 block truncate">Platba a dátumy</label>
+                      <textarea 
+                        value={editPaymentRaw}
+                        onChange={(e) => setEditPaymentRaw(e.target.value)}
+                        placeholder="Nenašiel sa žiadny text..."
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:border-[#00f2ff]/50 transition-all outline-none text-xs text-white shadow-inner resize-y min-h-[120px]"
+                      />
+                    </div>
+
+                    {/* Items */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-[#00f2ff] ml-1 block truncate">Položky faktúry</label>
+                      <textarea 
+                        value={editItemsRaw}
+                        onChange={(e) => setEditItemsRaw(e.target.value)}
+                        placeholder="Nenašiel sa žiadny text..."
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:border-[#00f2ff]/50 transition-all outline-none text-xs text-white shadow-inner resize-y min-h-[120px]"
+                      />
+                    </div>
+
+                    {/* Other / Full Width */}
+                    <div className="space-y-1.5 col-span-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-[#00f2ff] ml-1 block truncate">Ostatný text</label>
+                      <textarea 
+                        value={editOtherRaw}
+                        onChange={(e) => setEditOtherRaw(e.target.value)}
+                        placeholder="Nenašiel sa žiadny text..."
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:border-[#00f2ff]/50 transition-all outline-none text-xs text-white shadow-inner resize-y min-h-[100px]"
+                      />
+                    </div>
+
+                  </div>
                 </div>
               </div>
 
@@ -1464,7 +1513,11 @@ const Dashboard: React.FC<{
                       customerIcDph: editCustomerIcDph,
                       amount: editAmount,
                       category: editCategory,
-                      fullData: editFullData
+                      supplierRaw: editSupplierRaw,
+                      customerRaw: editCustomerRaw,
+                      paymentRaw: editPaymentRaw,
+                      itemsRaw: editItemsRaw,
+                      otherRaw: editOtherRaw
                     });
                     setSelectedDoc(null);
                     setLocalNotification('Zmeny v dokumente boli úspešne uložené!');
