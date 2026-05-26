@@ -561,6 +561,17 @@ const Dashboard: React.FC<{
             const rawText = await file.text().catch(() => "");
             aiData = parseDocumentWithAI(file.name, rawText, activeCompany || 'Predvolená firma');
           }
+          
+          // Krok 1.5: Rozdelenie (Split) Faktúra Vystavená vs Prijatá podľa aktívnej firmy
+          const activeCompanyLower = (activeCompany || '').toLowerCase().trim();
+          const supplierLower = (aiData.supplier || '').toLowerCase();
+          const customerLower = (aiData.customer || '').toLowerCase();
+          
+          if (activeCompanyLower && supplierLower.includes(activeCompanyLower)) {
+            aiData.category = 'Faktúra vystavená - tuzemská';
+          } else if (activeCompanyLower && customerLower.includes(activeCompanyLower)) {
+            aiData.category = 'Faktúra prijatá - tuzemská';
+          }
 
           // Krok 2: Kontrola duplicít (po OCR)
           // Pravidlo: Faktúra je duplicitná výlučne vtedy, ak sa zhoduje Číslo faktúry (názov)
@@ -647,8 +658,9 @@ const Dashboard: React.FC<{
             setUploadingQueue(prev => 
               prev.map(q => q.id === entry.id ? { ...q, progress: 100, status: 'done' as const } : q)
             );
-          } catch (uploadError) {
+          } catch (uploadError: any) {
             console.error("Zlyhalo nahrávanie do databázy:", uploadError);
+            alert(`Zlyhalo ukladanie do databázy pre ${file.name}: ${uploadError?.message || 'Neznáma chyba'}`);
             setUploadingQueue(prev => 
               prev.map(q => q.id === entry.id ? { ...q, progress: 0, status: 'error' as const } : q)
             );
@@ -707,7 +719,9 @@ const Dashboard: React.FC<{
             setUploadingQueue(prev => 
               prev.map(q => q.id === entry.id ? { ...q, progress: 100, status: 'done' as const } : q)
             );
-          } catch (uploadError) {
+          } catch (uploadError: any) {
+             console.error("Zlyhalo záložné nahrávanie do databázy:", uploadError);
+             alert(`Zlyhalo záchranné ukladanie pre ${file.name}: ${uploadError?.message || 'Neznáma chyba'}`);
              setUploadingQueue(prev => 
               prev.map(q => q.id === entry.id ? { ...q, progress: 0, status: 'error' as const } : q)
             );
